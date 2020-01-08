@@ -1,0 +1,10 @@
+[run]
+branch = True
+source = archie
+
+[report]
+exclude_lines =
+    def __str__
+    @abstractmethod
+    Protocol
+fail_under = 100

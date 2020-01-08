@@ -1,0 +1,116 @@
+image: python:3.7
+
+variables:
+  PIPENV_VENV_IN_PROJECT: "true"
+  PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+
+cache:
+  key: $CI_COMMIT_REF_SLUG
+  paths:
+    - .venv/
+  policy: pull
+
+stages:
+  - install
+  - build
+  - test
+  - deploy
+
+before_script:
+  - source .venv/bin/activate
+
+install:
+  stage: install
+  # The virtual env doesn't exist yet, don't try to activate it
+  before_script: []
+  cache:
+    key: $CI_COMMIT_REF_SLUG
+    paths:
+      - $PIP_CACHE_DIR
+      - .venv/
+  script:
+    - pip install poetry
+    - poetry config virtualenvs.in-project true
+    - poetry install
+
+build_package:
+  stage: build
+  script:
+    - pip install poetry
+    - poetry build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+
+build_docs:
+  stage: build
+  script:
+    - cd docs
+    - make html
+  artifacts:
+    paths:
+      - docs/_build/html/
+    expire_in: 1 hour
+
+check_readme:
+  stage: test
+  dependencies:
+    - build_package
+  needs: ["build_package"]
+  script:
+    - twine check dist/*
+
+check_style:
+  stage: test
+  needs: ["install"]
+  script:
+    - black --check archie/ test/
+
+check_lint:
+  stage: test
+  needs: ["install"]
+  script:
+    - pyflakes archie/ test/
+
+check_imports:
+  stage: test
+  needs: ["install"]
+  script:
+    - isort -rc -c -vb archie/ test/
+
+check_types:
+  stage: test
+  needs: ["install"]
+  script:
+    - mypy archie/ test/
+
+check_complexity:
+  stage: test
+  needs: ["install"]
+  script:
+    - xenon --max-absolute B --max-modules A --max-average A archie/
+
+test:
+  stage: test
+  needs: ["install"]
+  script:
+    - coverage run -m unittest discover -v
+    - coverage report
+  artifacts:
+    paths:
+      - .coverage
+    expire_in: 1 week
+  coverage: '/^TOTAL.*\s(\d+\%)$/'
+
+pages:
+  stage: deploy
+  dependencies:
+    - build_docs
+  script:
+    - mv docs/_build/html public
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
