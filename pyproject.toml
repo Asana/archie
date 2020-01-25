@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "asana-archie"
-version = "0.1.0"
+version = "0.2.0-dev"
 description = "A framework for automating Asana projects and workflows."
 authors = ["Joe Trollo <joetrollo@asana.com>"]
 license = "MIT"
