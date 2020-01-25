@@ -32,7 +32,7 @@ in the project:
 .. code-block:: python
 
    from archie.predicates import DueWithin, Overdue, Unassigned
-   from archie.actions import AddComment, AddFollower
+   from archie.actions import AddComment, AddFollower, AssignTo
 
    @archie.when(Overdue())
    def comment_on_overdue(task):
