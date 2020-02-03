@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import partial
 from itertools import product
 from test import fixtures as f
@@ -49,16 +49,18 @@ class TestDurationSuffix(TestCase):
         self.assertEqual("", _duration_suffix(timedelta.max))
 
 
-@freeze_time(datetime(2019, 1, 3, 12, 0, 0))
+@freeze_time(datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc))
 class TestForAtLeast(TestCase):
-    task = f.task(created_at=datetime(2019, 1, 1, 12, 0, 0))
+    task = f.task(created_at=datetime(2019, 1, 1, 12, 0, 0, tzinfo=timezone.utc))
 
     @staticmethod
     def matcher(story: Story) -> bool:
         return True
 
     def test_story(self) -> None:
-        matching_story = f.story(text="a", created_at=datetime(2019, 1, 2, 12, 0, 0))
+        matching_story = f.story(
+            text="a", created_at=datetime(2019, 1, 2, 12, 0, 0, tzinfo=timezone.utc)
+        )
         for td, expected in [(timedelta(hours=24), False), (timedelta(hours=23), True)]:
             with self.subTest(timedelta=td, expected=expected):
                 result = _for_at_least(self.task, [matching_story], self.matcher, td)
@@ -191,9 +193,9 @@ class TestOverdue(TestCase):
     predicate = Overdue()
 
     def test_due_at(self) -> None:
-        task = f.task(due_at=datetime.min)
+        task = f.task(due_at=datetime.min.replace(tzinfo=timezone.utc))
         self.assertTrue(self.predicate(task, self.client))
-        task = f.task(due_at=datetime.max)
+        task = f.task(due_at=datetime.max.replace(tzinfo=timezone.utc))
         self.assertFalse(self.predicate(task, self.client))
 
     def test_due_on(self) -> None:
@@ -266,7 +268,7 @@ class TestHasShortDescription(TestCase):
         matcher.assert_called_once_with("abc")
 
 
-@freeze_time(datetime(2019, 1, 1, 12, 0, 0))
+@freeze_time(datetime(2019, 1, 1, 12, 0, 0, tzinfo=timezone.utc))
 class TestDueWithin(TestCase):
     client = create_autospec(Client)
 
@@ -284,7 +286,7 @@ class TestDueWithin(TestCase):
                 self.assertEqual(expected, due_within(task, self.client))
 
     def test_within_due_at(self) -> None:
-        task = f.task(due_at=datetime(2019, 1, 3, 12, 0, 0))
+        task = f.task(due_at=datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc))
         for window, expected in [
             ("3d", True),
             ("2d", True),
@@ -563,7 +565,7 @@ class TestHasUnsetEnum(TestCase):
         self.assertFalse(matcher(f.story(resource_subtype="unknown")))
 
 
-@freeze_time(datetime(2019, 1, 3, 12, 0, 0))
+@freeze_time(datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc))
 class TestUntriaged(TestCase):
     task = f.task()
     user = f.user()
@@ -585,7 +587,10 @@ class TestUntriaged(TestCase):
     def test_recent_story(self) -> None:
         self.client.me.return_value = self.user
         self.client.stories_by_task.return_value = [
-            f.story(created_by=self.user, created_at=datetime(2019, 1, 2, 12, 0, 0))
+            f.story(
+                created_by=self.user,
+                created_at=datetime(2019, 1, 2, 12, 0, 0, tzinfo=timezone.utc),
+            )
         ]
 
         self.assertFalse(self.predicate(self.task, self.client))
@@ -596,7 +601,10 @@ class TestUntriaged(TestCase):
     def test_old_story(self) -> None:
         self.client.me.return_value = self.user
         self.client.stories_by_task.return_value = [
-            f.story(created_by=self.user, created_at=datetime(2019, 1, 1, 0, 0, 0))
+            f.story(
+                created_by=self.user,
+                created_at=datetime(2019, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            )
         ]
 
         self.assertTrue(self.predicate(self.task, self.client))

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import List
 from unittest import TestCase
 
@@ -26,13 +26,29 @@ class TestConverter(TestCase):
 
     def test_structure_datetime(self) -> None:
         structured_datetime = _structure_datetime("2019-01-02T12:34:56.789Z", datetime)
-        self.assertEqual(structured_datetime, datetime(2019, 1, 2, 12, 34, 56, 789000))
+        self.assertEqual(
+            structured_datetime,
+            datetime(2019, 1, 2, 12, 34, 56, 789000, tzinfo=timezone.utc),
+        )
 
-    def test_enstructure_datetime(self) -> None:
+    def test_unstructure_datetime_no_timezone(self) -> None:
         unstructured_datetime = _unstructure_datetime(
             datetime(2019, 1, 2, 12, 34, 56, 789000)
         )
-        self.assertEqual(unstructured_datetime, "2019-01-02T12:34:56.789Z")
+        self.assertEqual(unstructured_datetime, "2019-01-02T12:34:56.789+00:00")
+
+    def test_unstructure_datetime_utc(self) -> None:
+        unstructured_datetime = _unstructure_datetime(
+            datetime(2019, 1, 2, 12, 34, 56, 789000, tzinfo=timezone.utc)
+        )
+        self.assertEqual(unstructured_datetime, "2019-01-02T12:34:56.789+00:00")
+
+    def test_unstructure_datetime_other_timezone(self) -> None:
+        tz = timezone(timedelta(hours=-8))
+        unstructured_datetime = _unstructure_datetime(
+            datetime(2019, 1, 2, 12, 34, 56, 789000, tzinfo=tz)
+        )
+        self.assertEqual(unstructured_datetime, "2019-01-02T12:34:56.789-08:00")
 
 
 class TestEvents(TestCase):

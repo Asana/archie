@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, List, Mapping, Optional
 
 from archie.asana.models import (
@@ -33,7 +33,7 @@ def task(
     custom_fields: Optional[List[CustomField]] = None,
     memberships: Optional[List[TaskMembership]] = None,
     num_likes: int = 0,
-    created_at: datetime = datetime(2019, 1, 1, 0, 0, 0),
+    created_at: datetime = datetime(2019, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     created_by: User = user(),
     assignee: Optional[User] = None,
     due_on: Optional[date] = None,
@@ -118,7 +118,7 @@ def story(
     resource_subtype: str = "comment_added",
     text: str = "Comment text",
     created_by: Optional[User] = None,
-    created_at: datetime = datetime(2019, 1, 1, 0, 0, 0),
+    created_at: datetime = datetime(2019, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
     project: Optional[Project] = None,
     new_section: Optional[Section] = None,
     new_enum_value: Optional[EnumOption] = None,

@@ -7,7 +7,7 @@ unassigned, being overdue, or having a particular custom field.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from functools import partial
 from typing import Callable, List, Optional, Union
 
@@ -113,6 +113,14 @@ class AlwaysTrue(Predicate):
         return True
 
 
+def _now(tz: tzinfo = timezone.utc) -> datetime:
+    return datetime.now(tz)
+
+
+def _today(tz: tzinfo = timezone.utc) -> date:
+    return _now(tz).date()
+
+
 def _duration_suffix(duration: Optional[timedelta]) -> str:
     """Return an appropriate suffix for ``__str__`` on predicates with a duration."""
     if duration and duration != timedelta.max:
@@ -130,9 +138,9 @@ def _for_at_least(
     story = find(reversed(stories), story_matcher)
     # If there's a story reflecting the correct state, inspect time since that story
     if story is not None:
-        return datetime.utcnow() - story.created_at > duration
+        return _now() - story.created_at > duration
     # If there isn't a story, assume that the task was created in the correct state
-    return datetime.utcnow() - task.created_at > duration
+    return _now() - task.created_at > duration
 
 
 class Assigned(Predicate):
@@ -173,9 +181,9 @@ class DueWithin(Predicate):
 
     def __call__(self, task: Task, _: Client) -> bool:
         if task.due_at is not None:
-            return datetime.utcnow() < task.due_at <= datetime.utcnow() + self._window
+            return _now() < task.due_at <= _now() + self._window
         elif task.due_on is not None:
-            return date.today() < task.due_on <= date.today() + self._window
+            return _today() < task.due_on <= _today() + self._window
         return False
 
 
@@ -467,9 +475,9 @@ class Overdue(Predicate):
 
     def __call__(self, task: Task, _: Client) -> bool:
         if task.due_at is not None:
-            return task.due_at < datetime.utcnow()
+            return task.due_at < _now()
         elif task.due_on is not None:
-            return task.due_on < date.today()
+            return task.due_on < _today()
         return False
 
 
@@ -508,7 +516,7 @@ class Untriaged(Predicate):
             partial(self._story_matcher, client.me()),
         )
         if story is not None:
-            return datetime.utcnow() - story.created_at > self.duration
+            return _now() - story.created_at > self.duration
         return True
 
     @staticmethod

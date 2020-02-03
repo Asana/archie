@@ -12,7 +12,7 @@ the API for every task, even if the field isn't ever used in code.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Any, ClassVar, List, Mapping, Optional, Type, TypeVar, Union
 
@@ -34,12 +34,14 @@ def _unstructure_date(obj: date) -> str:
 
 
 def _structure_datetime(obj: str, cls: Type[datetime]) -> datetime:
-    return cls.fromisoformat(obj.rstrip("Z"))
+    return cls.fromisoformat(obj.replace("Z", "+00:00"))
 
 
-def _unstructure_datetime(obj: date) -> str:
-    # Truncate microseconds to get milliseconds
-    return obj.isoformat()[:-3] + "Z"
+def _unstructure_datetime(obj: datetime) -> str:
+    # If no timezone is present, assume UTC
+    if not obj.tzinfo:
+        obj = obj.replace(tzinfo=timezone.utc)
+    return obj.isoformat(timespec="milliseconds")
 
 
 cattr.register_structure_hook(date, _structure_date)
