@@ -9,6 +9,8 @@ Caution: Defining new fields on these models will cause the client to request th
 the API for every task, even if the field isn't ever used in code.
 """
 
+from __future__ import annotations
+
 import json
 from datetime import date, datetime
 from enum import Enum
@@ -104,7 +106,7 @@ class ResourceType(Enum):
     WORKSPACE = "workspace"
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class _Model(_HasFields, _Serializable):
     """Base class for all Asana models.
 
@@ -112,14 +114,14 @@ class _Model(_HasFields, _Serializable):
     :ivar ResourceType resource_type: The type of the object.
     """
 
-    gid: str
+    gid = attr.ib(type=str)
     resource_type: ClassVar[ResourceType]
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self.gid})"
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Workspace(_Model):
     """A workspace, the largest scope of data in Asana.
 
@@ -127,11 +129,11 @@ class Workspace(_Model):
     :ivar str name: The name of the workspace.
     """
 
-    name: str
+    name = attr.ib(type=str)
     resource_type: ClassVar[ResourceType] = ResourceType.WORKSPACE
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class User(_Model):
     """A user.
 
@@ -140,12 +142,12 @@ class User(_Model):
     :ivar str email: The user's primary email address.
     """
 
-    name: str
-    email: str
+    name = attr.ib(type=str)
+    email = attr.ib(type=str)
     resource_type: ClassVar[ResourceType] = ResourceType.USER
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Project(_Model):
     """A project, a collection of tasks within sections.
 
@@ -154,12 +156,12 @@ class Project(_Model):
     :ivar Workspace workspace: The workspace the project exists in.
     """
 
-    name: str
-    workspace: Workspace
+    name = attr.ib(type=str)
+    workspace = attr.ib(type=Workspace)
     resource_type: ClassVar[ResourceType] = ResourceType.PROJECT
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Section(_Model):
     """A section, a collection of tasks.
 
@@ -168,12 +170,12 @@ class Section(_Model):
     :ivar Project project: The project the section belongs to.
     """
 
-    name: str
-    project: Project
+    name = attr.ib(type=str)
+    project = attr.ib(type=Project)
     resource_type: ClassVar[ResourceType] = ResourceType.SECTION
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class EnumOption(_Model):
     """An enum option for a custom field.
 
@@ -182,13 +184,13 @@ class EnumOption(_Model):
     :ivar Optional[str]: The color of the enum option.
     """
 
-    name: str
-    color: Optional[str]
+    name = attr.ib(type=str)
+    color = attr.ib(type=Optional[str])
     resource_type: ClassVar[ResourceType] = ResourceType.ENUM_OPTION
 
 
 # TODO: Make subclasses for each custom field subtype
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class CustomField(_Model):
     """A custom field.
 
@@ -204,16 +206,16 @@ class CustomField(_Model):
         is set and the field is of the appropriate type.
     """
 
-    resource_subtype: str
-    name: str
-    enum_value: Optional[EnumOption] = None
-    enum_options: Optional[List[EnumOption]] = None
-    text_value: Optional[str] = None
-    number_value: Optional[float] = None
+    resource_subtype = attr.ib(type=str)
+    name = attr.ib(type=str)
+    enum_value = attr.ib(type=Optional[EnumOption], default=None)
+    enum_options = attr.ib(type=Optional[List[EnumOption]], default=None)
+    text_value = attr.ib(type=Optional[str], default=None)
+    number_value = attr.ib(type=Optional[float], default=None)
     resource_type: ClassVar[ResourceType] = ResourceType.CUSTOM_FIELD
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class TaskMembership(_HasFields, _Serializable):
     """A task's membership in some project-section pair.
 
@@ -221,12 +223,12 @@ class TaskMembership(_HasFields, _Serializable):
     :ivar Section section: The name of the section the task is in within that project.
     """
 
-    project: Project
-    section: Section
+    project = attr.ib(type=Project)
+    section = attr.ib(type=Section)
     resource_type: ClassVar[ResourceType] = ResourceType.TASK_MEMBERSHIP
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class External(_HasFields, _Serializable):
     """An external data object.
 
@@ -234,13 +236,13 @@ class External(_HasFields, _Serializable):
     :ivar Optional[str] data: The external data of the object.
     """
 
-    gid: Optional[str]
-    data: Mapping[str, Any]
+    gid = attr.ib(type=Optional[str])
+    data = attr.ib(type=Mapping[str, Any])
 
 
 def _structure_external(obj: dict, cls: Type[External]) -> External:
     data = obj.get("data")
-    return cls(gid=obj.get("id"), data=json.loads(data or "{}"))
+    return cls(gid=obj.get("gid"), data=json.loads(data or "{}"))
 
 
 def _unstructure_external(obj: External) -> dict:
@@ -252,7 +254,7 @@ cattr.register_structure_hook(External, _structure_external)
 cattr.register_unstructure_hook(External, _unstructure_external)
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Task(_Model):
     """A task.
 
@@ -274,24 +276,24 @@ class Task(_Model):
     :ivar Optional[External] external: The external object associated with the task.
     """
 
-    name: str
-    notes: str
-    completed: bool
-    custom_fields: List[CustomField]
-    memberships: List[TaskMembership]
-    num_likes: int
-    created_at: datetime
-    created_by: User
-    assignee: Optional[User]
-    due_on: Optional[date]
-    due_at: Optional[datetime]
-    start_on: Optional[date]
-    external: Optional[External] = None
+    name = attr.ib(type=str)
+    notes = attr.ib(type=str)
+    completed = attr.ib(type=bool)
+    custom_fields = attr.ib(type=List[CustomField])
+    memberships = attr.ib(type=List[TaskMembership])
+    num_likes = attr.ib(type=int)
+    created_at = attr.ib(type=datetime)
+    created_by = attr.ib(type=User)
+    assignee = attr.ib(type=Optional[User])
+    due_on = attr.ib(type=Optional[date])
+    due_at = attr.ib(type=Optional[datetime])
+    start_on = attr.ib(type=Optional[date])
+    external = attr.ib(type=Optional[External], default=None)
     resource_type: ClassVar[ResourceType] = ResourceType.TASK
 
 
 # TODO: Make subclasses for individual story types
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Story(_Model):
     """A story on a task, representing some piece of history.
 
@@ -312,16 +314,16 @@ class Story(_Model):
         task, this is the new assignee.
     """
 
-    resource_subtype: str
-    text: str
-    created_at: datetime
-    created_by: Optional[User]
+    resource_subtype = attr.ib(type=str)
+    text = attr.ib(type=str)
+    created_at = attr.ib(type=datetime)
+    created_by = attr.ib(type=Optional[User])
     # Subtype-specific fields
-    project: Optional[Project] = None
-    new_section: Optional[Section] = None
-    custom_field: Optional[CustomField] = None
-    new_enum_value: Optional[EnumOption] = None
-    assignee: Optional[User] = None
+    project = attr.ib(type=Optional[Project], default=None)
+    new_section = attr.ib(type=Optional[Section], default=None)
+    custom_field = attr.ib(type=Optional[CustomField], default=None)
+    new_enum_value = attr.ib(type=Optional[EnumOption], default=None)
+    assignee = attr.ib(type=Optional[User], default=None)
     resource_type: ClassVar[ResourceType] = ResourceType.STORY
 
 
@@ -335,7 +337,7 @@ class EventAction(Enum):
     UNDELETED = "undeleted"
 
 
-@attr.s(auto_attribs=True, frozen=True)
+@attr.s(frozen=True)
 class Event(_HasFields, _Serializable):
     """An event, such as from an event stream.
 
@@ -346,11 +348,11 @@ class Event(_HasFields, _Serializable):
     :ivar User user: The user that caused the event.
     """
 
-    action: EventAction
-    created_at: datetime
-    parent: Optional[Union[Project, Task]]
-    resource: Union[Task, Story]
-    user: User
+    action = attr.ib(type=EventAction)
+    created_at = attr.ib(type=datetime)
+    parent = attr.ib(type=Optional[Union[Project, Task]])
+    resource = attr.ib(type=Union[Task, Story])
+    user = attr.ib(type=User)
 
     # TODO: Update _HasFields.fields() to handle unions.
     @classmethod
