@@ -113,6 +113,16 @@ class AlwaysTrue(Predicate):
         return True
 
 
+class _TimezoneAware(Predicate, ABC):
+    """A predicate that requires knowledge of a timezone for accurate evaluation.
+
+    :param timezone: The timezone used to evaluate the predicate.
+    """
+
+    def __init__(self, timezone: tzinfo) -> None:
+        self._tz = timezone
+
+
 def _now(tz: tzinfo = timezone.utc) -> datetime:
     return datetime.now(tz)
 
@@ -167,23 +177,32 @@ class Assigned(Predicate):
             return self.__class__.__name__
 
 
-class DueWithin(Predicate):
+class DueWithin(_TimezoneAware):
     """Check if a task is due within some time window.
 
     If, after the specified time window has elapsed, the task would be considered
-    overdue, this predicate will return ``True``.
+    due, this predicate will return ``True``.
+
+    This predicate requires knowledge of a timezone to evaluate if the task is due
+    relative to the user's local time. A task due on 2020-01-02 is considered "due
+    within two hours" from 2020-01-01T10:00:00 in the given timezone until (but not
+    including) 2020-01-03T00:00:00 in that same timezone.
 
     :param window: How soon the task must be due to match.
+    :param timezone: The timezone used to determine whether the task is overdue.
     """
 
-    def __init__(self, window: EasyTimedelta) -> None:
+    def __init__(self, window: EasyTimedelta, timezone: tzinfo) -> None:
         self._window = convert_timedelta(window)
+        super().__init__(timezone)
 
     def __call__(self, task: Task, _: Client) -> bool:
         if task.due_at is not None:
-            return _now() < task.due_at <= _now() + self._window
+            now = _now(self._tz)
+            return now <= task.due_at <= now + self._window
         elif task.due_on is not None:
-            return _today() < task.due_on <= _today() + self._window
+            now = _now(self._tz)
+            return now.date() <= task.due_on <= (now + self._window).date()
         return False
 
 
@@ -464,20 +483,26 @@ class IsInProjectAndSection(Predicate):
         )
 
 
-class Overdue(Predicate):
+class Overdue(_TimezoneAware):
     """Check if a task is overdue.
 
-    If the task has a due date and time, it's compared to the current time.
-    If the task only has a due date, it's compared to the current date.
-    Tasks due today are not considered overdue.
-    If a task has no due date, it's not considered overdue.
+    This predicate requires knowledge of a timezone to evaluate if the task is  overdue
+    relative to the user's local time. A task due on 2020-01-01 is considered overdue
+    only if we are in a timezone where the current date is 2020-01-02 or later. Tasks
+    that are due at a datetime are compared to the current time after taking into
+    account the timezone difference.
+
+    Tasks due today are not considered overdue—use :py:class:`DueToday` instead. Tasks
+    with no due date are never considered overdue.
+
+    :param timezone: The timezone used to determine whether the task is overdue.
     """
 
     def __call__(self, task: Task, _: Client) -> bool:
         if task.due_at is not None:
-            return task.due_at < _now()
+            return task.due_at < _now(self._tz)
         elif task.due_on is not None:
-            return task.due_on < _today()
+            return task.due_on < _today(self._tz)
         return False
 
 

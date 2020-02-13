@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 from functools import partial
 from itertools import product
 from test import fixtures as f
+from typing import Callable, List, Tuple, TypeVar
 from unittest import TestCase
 from unittest.mock import Mock, create_autospec, patch
 
@@ -33,6 +34,23 @@ from archie.predicates import (
     _Not,
     _Or,
 )
+
+PST = timezone(timedelta(hours=-8))
+T = TypeVar("T")
+
+
+class DateBasedTestCase(TestCase):
+    def _test_multiple_dates(
+        self,
+        predicate: Predicate,
+        task_factory: Callable[[T], Task],
+        inputs_and_expectations: List[Tuple[T, bool]],
+    ) -> None:
+        client = create_autospec(Client)
+        for value, expectation in inputs_and_expectations:
+            with self.subTest(input=value, expectation=expectation):
+                task = task_factory(value)
+                self.assertEqual(expectation, predicate(task, client))
 
 
 class TestDurationSuffix(TestCase):
@@ -188,25 +206,50 @@ class TestAssigned(TestCase):
         self.assertFalse(assigned(task, self.client))
 
 
-class TestOverdue(TestCase):
-    client = create_autospec(Client)
-    predicate = Overdue()
-
+@freeze_time(datetime(2019, 1, 3, 6, 0, 0, tzinfo=timezone.utc))
+class TestOverdue(DateBasedTestCase):
     def test_due_at(self) -> None:
-        task = f.task(due_at=datetime.min.replace(tzinfo=timezone.utc))
-        self.assertTrue(self.predicate(task, self.client))
-        task = f.task(due_at=datetime.max.replace(tzinfo=timezone.utc))
-        self.assertFalse(self.predicate(task, self.client))
+        predicate = Overdue(timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_at: f.task(due_at=due_at),
+            [
+                (datetime.min.replace(tzinfo=timezone.utc), True),
+                (datetime.max.replace(tzinfo=timezone.utc), False),
+            ],
+        )
 
-    def test_due_on(self) -> None:
-        task = f.task(due_at=None, due_on=date.min)
-        self.assertTrue(self.predicate(task, self.client))
-        task = f.task(due_at=None, due_on=date.max)
-        self.assertFalse(self.predicate(task, self.client))
+    def test_due_on_utc(self) -> None:
+        predicate = Overdue(timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date.min, True),
+                (date(2019, 1, 2), True),
+                (date(2019, 1, 3), False),
+                (date.max, False),
+            ],
+        )
+
+    def test_due_on_pst(self) -> None:
+        predicate = Overdue(PST)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date.min, True),
+                (date(2019, 1, 1), True),
+                (date(2019, 1, 2), False),
+                (date.max, False),
+            ],
+        )
 
     def test_none(self) -> None:
+        predicate = Overdue(timezone.utc)
+        client = create_autospec(Client)
         task = f.task(due_at=None, due_on=None)
-        self.assertFalse(self.predicate(task, self.client))
+        self.assertFalse(predicate(task, client))
 
 
 class TestHasNoDueDate(TestCase):
@@ -268,40 +311,91 @@ class TestHasShortDescription(TestCase):
         matcher.assert_called_once_with("abc")
 
 
-@freeze_time(datetime(2019, 1, 1, 12, 0, 0, tzinfo=timezone.utc))
-class TestDueWithin(TestCase):
-    client = create_autospec(Client)
+@freeze_time(datetime(2019, 1, 3, 6, 0, 0, tzinfo=timezone.utc))
+class TestDueWithin(DateBasedTestCase):
+    def test_within_due_on_utc_1d(self) -> None:
+        predicate = DueWithin("1d", timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 2), False),
+                (date(2019, 1, 3), True),
+                (date(2019, 1, 4), True),
+                (date(2019, 1, 5), False),
+            ],
+        )
 
-    def test_within_due_on(self) -> None:
-        task = f.task(due_at=None, due_on=date(2019, 1, 3))
-        for window, expected in [
-            ("3d", True),
-            ("2d", True),
-            ("1d", False),
-            ("48h", True),
-            ("47h", False),
-        ]:
-            with self.subTest(window=window, expected=expected):
-                due_within = DueWithin(window)
-                self.assertEqual(expected, due_within(task, self.client))
+    def test_within_due_on_utc_16h(self) -> None:
+        predicate = DueWithin("16h", timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 2), False),
+                (date(2019, 1, 3), True),
+                (date(2019, 1, 4), False),
+            ],
+        )
 
-    def test_within_due_at(self) -> None:
-        task = f.task(due_at=datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc))
-        for window, expected in [
-            ("3d", True),
-            ("2d", True),
-            ("1d", False),
-            ("48h", True),
-            ("47h", False),
-        ]:
-            with self.subTest(window=window, expected=expected):
-                due_within = DueWithin(window)
-                self.assertEqual(expected, due_within(task, self.client))
+    def test_within_due_on_pst_1d(self) -> None:
+        predicate = DueWithin("1d", PST)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 1), False),
+                (date(2019, 1, 2), True),
+                (date(2019, 1, 3), True),
+                (date(2019, 1, 4), False),
+            ],
+        )
+
+    def test_within_due_on_pst_16h(self) -> None:
+        predicate = DueWithin("16h", PST)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 1), False),
+                (date(2019, 1, 2), True),
+                (date(2019, 1, 3), True),
+                (date(2019, 1, 4), False),
+            ],
+        )
+
+    def test_within_due_at_1d(self) -> None:
+
+        predicate = DueWithin("1d", timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_at: f.task(due_at=due_at.replace(tzinfo=timezone.utc)),
+            [
+                (datetime(2019, 1, 2, 0, 0, 0), False),
+                (datetime(2019, 1, 3, 6, 0, 0), True),
+                (datetime(2019, 1, 4, 6, 0, 0), True),
+                (datetime(2019, 1, 4, 12, 0, 0), False),
+            ],
+        )
+
+    def test_within_due_at_16h(self) -> None:
+        predicate = DueWithin("16h", timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_at: f.task(due_at=due_at.replace(tzinfo=timezone.utc)),
+            [
+                (datetime(2019, 1, 2, 0, 0, 0), False),
+                (datetime(2019, 1, 3, 6, 0, 0), True),
+                (datetime(2019, 1, 3, 22, 0, 0), True),
+                (datetime(2019, 1, 4, 0, 0, 0), False),
+            ],
+        )
 
     def test_no_due_date(self) -> None:
+        client = create_autospec(Client)
         task = f.task(due_at=None, due_on=None)
-        due_within = DueWithin("0h")
-        self.assertFalse(due_within(task, self.client))
+        due_within = DueWithin("0h", timezone.utc)
+        self.assertFalse(due_within(task, client))
 
 
 class TestIsInProject(TestCase):
