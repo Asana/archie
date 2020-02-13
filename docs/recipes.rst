@@ -18,10 +18,14 @@ Running your rules periodically
    archie = Triager(access_token="<access-token>", task_source=task_source)
 
    # Add rules
+   from datetime import timezone, timedelta
+
    from archie.actions import AddComment
    from archie.predicates import Overdue
 
-   @archie.when(Overdue())
+   PST = timezone(offset=timedelta(hours=-8), name="PST")
+
+   @archie.when(Overdue(timezone=PST))
    def comment_on_overdue(task):
        return [AddComment("This task is overdue!")]
 
@@ -50,14 +54,18 @@ Applying the same rules to multiple projects
    all_dogs = [archie, snacks]
 
    # Define rules
+   from datetime import timezone, timedelta
+
    from archie.predicates import Overdue
    from archie.actions import AddComment
+
+   PST = timezone(offset=timedelta(hours=-8), name="PST")
 
    def comment_on_overdue(task):
        return [AddComment("This task is overdue!")]
 
    def add_rules(dog):
-       dog.when(Overdue())(comment_on_overdue)
+       dog.when(Overdue(timezone=PST))(comment_on_overdue)
        # Add other common rules...
 
    # Add all rules to all triagers

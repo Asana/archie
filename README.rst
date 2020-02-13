@@ -60,14 +60,18 @@ in the project:
 
 .. code-block:: python
 
+   from datetime import timezone, timedelta
+
    from archie.predicates import DueWithin, Overdue, Unassigned
    from archie.actions import AddComment, AddFollower, AssignTo
 
-   @archie.when(Overdue())
+   PST = timezone(offset=timedelta(hours=-8), name="PST")
+
+   @archie.when(Overdue(timezone=PST))
    def comment_on_overdue(task):
        return [AddComment("This task is overdue!"), AddFollower("user1@domain.com")]
 
-   @archie.when(Unassigned() & DueWithin("2d"))
+   @archie.when(Unassigned() & DueWithin("2d", timezone=PST))
    def comment_on_due_soon(task):
        return [AddComment("This is due soon and needs an owner."), AssignTo("user2@domain.com")]
 
