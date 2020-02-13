@@ -13,6 +13,7 @@ from archie.asana.models import Story, Task
 from archie.predicates import (
     AlwaysTrue,
     Assigned,
+    DueToday,
     DueWithin,
     HasComment,
     HasDescription,
@@ -396,6 +397,65 @@ class TestDueWithin(DateBasedTestCase):
         task = f.task(due_at=None, due_on=None)
         due_within = DueWithin("0h", timezone.utc)
         self.assertFalse(due_within(task, client))
+
+
+@freeze_time(datetime(2019, 1, 3, 6, 0, 0, tzinfo=timezone.utc))
+class TestDueToday(DateBasedTestCase):
+    def test_due_on_utc(self) -> None:
+        predicate = DueToday(timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 2), False),
+                (date(2019, 1, 3), True),
+                (date(2019, 1, 4), False),
+            ],
+        )
+
+    def test_due_on_pst(self) -> None:
+        predicate = DueToday(PST)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_on: f.task(due_at=None, due_on=due_on),
+            [
+                (date(2019, 1, 1), False),
+                (date(2019, 1, 2), True),
+                (date(2019, 1, 3), False),
+            ],
+        )
+
+    def test_due_at_utc(self) -> None:
+        predicate = DueToday(timezone.utc)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_at: f.task(due_at=due_at),
+            [
+                (datetime(2019, 1, 2, 12, 0, 0, tzinfo=timezone.utc), False),
+                (datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc), True),
+                (datetime(2019, 1, 4, 12, 0, 0, tzinfo=timezone.utc), False),
+            ],
+        )
+
+    def test_due_at_pst(self) -> None:
+        predicate = DueToday(PST)
+        self._test_multiple_dates(
+            predicate,
+            lambda due_at: f.task(due_at=due_at),
+            [
+                (datetime(2019, 1, 1, 12, 0, 0, tzinfo=timezone.utc), False),
+                (datetime(2019, 1, 2, 4, 0, 0, tzinfo=timezone.utc), False),
+                (datetime(2019, 1, 2, 12, 0, 0, tzinfo=timezone.utc), True),
+                (datetime(2019, 1, 3, 4, 0, 0, tzinfo=timezone.utc), True),
+                (datetime(2019, 1, 3, 12, 0, 0, tzinfo=timezone.utc), False),
+            ],
+        )
+
+    def test_no_due_date(self) -> None:
+        client = create_autospec(Client)
+        predicate = DueToday(timezone.utc)
+        task = f.task(due_at=None, due_on=None)
+        self.assertFalse(predicate(task, client))
 
 
 class TestIsInProject(TestCase):
