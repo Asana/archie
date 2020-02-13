@@ -177,6 +177,27 @@ class Assigned(Predicate):
             return self.__class__.__name__
 
 
+class DueToday(_TimezoneAware):
+    """Check if a task is due today.
+
+    This predicate requires knowledge of a timezone to evaluate if the task is due
+    relative to the user's local time. A task due on 2020-01-01 should be considered
+    "due today" only if we are in a timezone where it is currently 2020-01-01.
+    Similarly, a task due at 2020-01-01T12:00:00+0000 should be considered "due today"
+    only if that datetime matches the current date after being translated to the
+    appropriate timezone.
+
+    :param timezone: The timezone used to determine whether the task is due.
+    """
+
+    def __call__(self, task: Task, _: Client) -> bool:
+        if task.due_at is not None:
+            return _today(self._tz) == task.due_at.astimezone(self._tz).date()
+        elif task.due_on is not None:
+            return _today(self._tz) == task.due_on
+        return False
+
+
 class DueWithin(_TimezoneAware):
     """Check if a task is due within some time window.
 

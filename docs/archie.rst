@@ -58,6 +58,7 @@ Predicates
 
    AlwaysTrue
    Assigned
+   DueToday
    DueWithin
    HasComment
    HasEnumValue
